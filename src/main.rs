@@ -1,13 +1,21 @@
 use bevy::prelude::*;
+use rand::Rng;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .insert_resource(WindowDescriptor {
+            title: "Physics".to_string(),
+            width: 700.,
+            height: 700.,
+            ..Default::default()
+        })
         .add_startup_system(setup)
         .add_system(velocity_system)
         .add_system(acceleration_system)
         .add_system(electrostatics_system)
-        //.add_system(friction_system)
+        .add_system(friction_system)
+        .add_system(wrap_coordinate_system)
         .run();
 }
 
@@ -31,64 +39,55 @@ fn setup(mut commands: Commands) {
     // add a camera
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 
-    let ball1_pos = Vec3::new(-40.0, 30.0, 0.0);
-    let ball2_pos = Vec3::new(40.0, -30.0, 0.0);
-    let ball3_pos = Vec3::new(-70.0, 70.0, 0.0);
+    fn add_particle(
+        commands: &mut Commands,
+        pos: Vec3,
+        color: Color,
+        mass: f32,
+        charge: i32,
+        vel: Vec3,
+        acc: Vec3,
+    ) {
+        commands
+            .spawn_bundle(SpriteBundle {
+                transform: Transform {
+                    scale: Vec3::new(30.0, 30.0, 0.0),
+                    translation: pos,
+                    ..Default::default()
+                },
+                sprite: Sprite {
+                    color,
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .insert(Mass(mass))
+            .insert(Charge(charge))
+            .insert(Velocity(vel))
+            .insert(Acceleration(acc));
+    }
 
-    // particle 1
-    commands
-        .spawn_bundle(SpriteBundle {
-            transform: Transform {
-                scale: Vec3::new(30.0, 30.0, 0.0),
-                translation: ball1_pos,
-                ..Default::default()
-            },
-            sprite: Sprite {
-                color: Color::rgb(1.0, 0.5, 0.5),
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .insert(Mass(1.0))
-        .insert(Charge(1))
-        .insert(Velocity(Vec3::new(0.0, 0.0, 0.0)))
-        .insert(Acceleration(Vec3::new(0.0, 0.0, 0.0)));
+    let mut rng = rand::thread_rng();
 
-    commands
-        .spawn_bundle(SpriteBundle {
-            transform: Transform {
-                scale: Vec3::new(30.0, 30.0, 0.0),
-                translation: ball2_pos,
-                ..Default::default()
-            },
-            sprite: Sprite {
-                color: Color::rgb(0.5, 1.0, 0.5),
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .insert(Mass(1.0))
-        .insert(Charge(1))
-        .insert(Velocity(Vec3::new(0.0, 0.0, 0.0)))
-        .insert(Acceleration(Vec3::new(0.0, 0.0, 0.0)));
-
-    commands
-        .spawn_bundle(SpriteBundle {
-            transform: Transform {
-                scale: Vec3::new(30.0, 30.0, 0.0),
-                translation: ball3_pos,
-                ..Default::default()
-            },
-            sprite: Sprite {
-                color: Color::rgb(0.5, 0.5, 1.0),
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .insert(Mass(1.0))
-        .insert(Charge(-1))
-        .insert(Velocity(Vec3::new(0.0, 0.0, 0.0)))
-        .insert(Acceleration(Vec3::new(0.0, 0.0, 0.0)));
+    for _ in 0..100 {
+        add_particle(
+            &mut commands,
+            Vec3::new(
+                rng.gen_range(-100.0..100.0),
+                rng.gen_range(-100.0..100.0),
+                0.0,
+            ),
+            Color::rgb(
+                rng.gen_range(0.0..255.0),
+                rng.gen_range(0.0..255.0),
+                rng.gen_range(0.0..255.0),
+            ),
+            rng.gen_range(-100.0..100.0),
+            rng.gen_range(1..100),
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
+        );
+    }
 }
 
 fn velocity_system(mut query: Query<(&mut Transform, &Velocity)>) {
@@ -103,7 +102,7 @@ fn acceleration_system(mut query: Query<(&mut Velocity, &Acceleration)>) {
     }
 }
 
-// not physically correct but I can change later
+// not physically correct but I can change later. TODO: make this a drag force
 fn friction_system(mut query: Query<&mut Velocity>) {
     for mut vel in query.iter_mut() {
         vel.0 *= FRICTION_COEFFICIENT;
@@ -117,36 +116,40 @@ fn electrostatics_system(mut query: Query<(&mut Acceleration, &Transform, &Mass,
         [(mut acc1, transform1, Mass(m1), Charge(q1)), (mut acc2, transform2, Mass(m2), Charge(q2))],
     ) = iter.fetch_next()
     {
-        if transform1.translation == transform2.translation {
-            continue;
-        }
-        /*
+        let r12 = transform1.translation - transform2.translation;
         let r21 = transform2.translation - transform1.translation;
 
-        let dir12 = r12.normalize();
+        if r12.length() <= 30.0 || r21.length() <= 30.0 {
+            continue;
+        }
 
-        let c = 10.0 * (*q1 as f32) * (*q2 as f32);
+        let r_hat_12 = r12.normalize();
+        let r_hat_21 = r21.normalize();
 
-        let r_squared = r12.length_squared();
+        let f1 = 5.0 * (q1 * q2) as f32 / r12.length_squared() * r_hat_12;
+        let f2 = 5.0 * (q1 * q2) as f32 / r21.length_squared() * r_hat_21;
 
-        let f12 = c * dir12 / r_squared;
-        let f21 = c * -dir12 / r_squared;
+        acc1.0 += f1 / *m1;
+        acc2.0 += f2 / *m2;
+    }
+}
 
-        acc1.0 += f21 / *m1;
-        acc2.0 += f12 / *m2; */
+fn wrap_coordinate_system(mut query: Query<&mut Transform>, screen: Res<WindowDescriptor>) {
+    for mut transform in query.iter_mut() {
+        if transform.translation.x > screen.width {
+            transform.translation.x = -screen.width;
+        }
 
-        let r = transform2.translation - transform1.translation;
+        if transform.translation.y > screen.height {
+            transform.translation.y = -screen.height;
+        }
 
-        let dir = r.normalize();
+        if transform.translation.x < -screen.width {
+            transform.translation.x = screen.width;
+        }
 
-        let c = q1 * q2;
-
-        let r2 = r.length_squared();
-
-        let f12 = c as f32 * dir / r2;
-        let f21 = c as f32 * -dir / r2;
-
-        acc1.0 += f21 / *m1;
-        acc2.0 += f12 / *m2;
+        if transform.translation.y < -screen.height {
+            transform.translation.y = screen.height;
+        }
     }
 }
