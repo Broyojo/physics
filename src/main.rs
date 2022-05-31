@@ -5,7 +5,7 @@ use rand::Rng;
 fn main() {
     App::new()
         .insert_resource(WindowDescriptor {
-            title: "Physics".to_string(),
+            title: "Chemistry Simulation".to_string(),
             width: 1280.,
             height: 720.,
             ..Default::default()
@@ -24,7 +24,7 @@ fn main() {
 }
 
 const COULOMB_CONSTANT: f32 = 50.0;
-const FRICTION_COEFFICIENT: f32 = 0.8;
+const FRICTION_COEFFICIENT: f32 = 0.1;
 const ELECTRON_MASS: f32 = 5.0;
 const PROTON_MASS: f32 = 20.0;
 
@@ -76,25 +76,59 @@ fn setup(mut commands: Commands, window: Res<WindowDescriptor>) {
 
     let mut rng = rand::thread_rng();
 
-    for _ in 1..200 {
-        add_particle(
-            &mut commands,
-            Vec3::new(
-                rng.gen_range(-window.width / 2.0..=window.height / 2.0),
-                rng.gen_range(-window.width / 2.0..=window.height / 2.0),
-                0.0,
-            ),
-            Color::rgb(
-                rng.gen_range(-255.0..=255.0),
-                rng.gen_range(-255.0..=255.0),
-                rng.gen_range(-255.0..=255.0),
-            ),
-            rng.gen_range(1.0..=20.0),
-            rng.gen_range(-5..=5),
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            rng.gen_range(1.0..40.0),
-        )
+    println!("{}x{}", window.width, window.height);
+
+    // for _ in 0..10 {
+    //     let b = rng.gen_bool(0.5);
+    //     add_particle(
+    //         &mut commands,
+    //         Vec3::new(
+    //             rng.gen_range(-window.width / 2.0..=window.width / 2.0),
+    //             rng.gen_range(-window.height / 2.0..=window.height / 2.0),
+    //             0.0,
+    //         ),
+    //         Color::rgb(
+    //             if b { 255.0 } else { 0.0 },
+    //             0.0,
+    //             if b { 0.0 } else { 255.0 },
+    //         ),
+    //         if b { 20.0 } else { 10.0 },
+    //         if b { 1 } else { -1 },
+    //         Vec3::new(0.0, 0.0, 0.0),
+    //         Vec3::new(0.0, 0.0, 0.0),
+    //         if b { 20.0 } else { 10.0 },
+    //     )
+    // }
+
+    /*
+    commands: &mut Commands,
+    pos: Vec3,
+    color: Color,
+    mass: f32,
+    charge: i32,
+    vel: Vec3,
+    acc: Vec3,
+    radius: f32,
+    */
+
+    for i in -10..10 {
+        for j in -10..10 {
+            let b = (i + j) % 2 == 0;
+            add_particle(
+                &mut commands,
+                Vec3::new((i * 30) as f32, (j * 30) as f32, 0.0),
+                Color::rgb(
+                    if b { 255.0 } else { 0.0 },
+                    0.0,
+                    if b { 0.0 } else { 255.0 },
+                ),
+                if b { 20.0 } else { 10.0 },
+                if b { 1 } else { -1 },
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 0.0),
+                if b { 20.0 } else { 10.0 },
+            )
+        }
     }
 }
 
@@ -110,7 +144,6 @@ fn acceleration_system(mut query: Query<(&mut Velocity, &Acceleration)>) {
     }
 }
 
-// not physically correct but I can change later. TODO: make this a drag force
 fn friction_system(mut query: Query<&mut Velocity>) {
     for mut vel in query.iter_mut() {
         vel.0 *= FRICTION_COEFFICIENT;
@@ -129,7 +162,7 @@ fn electrostatics_system(
         let r12 = transform1.translation - transform2.translation;
         let r21 = transform2.translation - transform1.translation;
 
-        if r12.length() < (r1 + r2) {
+        if r12.length() < r1 + r2 {
             continue;
         }
 
@@ -149,20 +182,20 @@ fn wrap_coordinate_system(
     window: Res<WindowDescriptor>,
 ) {
     for (mut transform, Radius(radius)) in query.iter_mut() {
-        if transform.translation.x > window.width + radius {
-            transform.translation.x = -window.width - radius;
+        if transform.translation.x > window.width / 2.0 + radius {
+            transform.translation.x = -window.width / 2.0 - radius;
         }
 
-        if transform.translation.y > window.height + radius {
-            transform.translation.y = -window.height - radius;
+        if transform.translation.y > window.height / 2.0 + radius {
+            transform.translation.y = -window.height / 2.0 - radius;
         }
 
-        if transform.translation.x < -window.width - radius {
-            transform.translation.x = window.width + radius;
+        if transform.translation.x < -window.width / 2.0 - radius {
+            transform.translation.x = window.width / 2.0 + radius;
         }
 
-        if transform.translation.y < -window.height - radius {
-            transform.translation.y = window.height + radius;
+        if transform.translation.y < -window.height / 2.0 - radius {
+            transform.translation.y = window.height / 2.0 + radius;
         }
     }
 }
