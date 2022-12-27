@@ -5,7 +5,7 @@ use rand::Rng;
 fn main() {
     App::new()
         .insert_resource(WindowDescriptor {
-            title: "Chemistry Simulation".to_string(),
+            title: "Physics Simulation".to_string(),
             width: 1280.,
             height: 720.,
             ..Default::default()
